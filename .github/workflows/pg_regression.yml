@@ -25,8 +25,19 @@ jobs:
               libreadline-dev libedit-dev uuid-dev libossp-uuid-dev \
               libipc-run-perl libtime-hires-perl libtest-simple-perl \
               libicu-dev libnuma-dev
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ runner.os }}-autoconf
+        max-size: 2G
+        append-timestamp: false
+      env:
+        CCACHE_SLOPPINESS: time_macros
     - name: configure - linux
       if: ${{ matrix.os == 'ubuntu-latest' }}
+      env:
+        CC: ccache gcc
+        CXX: ccache g++
       run: |
         curl -L -o cpanm http://cpanmin.us && chmod +x cpanm && \
         ./cpanm --sudo IPC::Run && \
