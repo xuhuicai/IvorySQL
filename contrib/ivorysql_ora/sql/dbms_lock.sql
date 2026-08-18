@@ -111,4 +111,42 @@ begin
  raise notice 'mode=%', v_lockmode;
 end
 $$;
+--
+-- re-requesting a lock already owned by this session must return 4
+-- (already_owned) and must not leak an advisory lock
+--
+declare
+ v_handle text;
+ v_rc int;
+ v_n int;
+begin
+ dbms_lock.allocate_unique('REENTRANT', v_handle);
+ v_rc := dbms_lock.request(v_handle, dbms_lock.x_mode, 0);
+ assert v_rc = 0, format('first request rc=%s', v_rc);
+
+ v_rc := dbms_lock.request(v_handle, dbms_lock.x_mode, 0);
+ raise notice 're-request rc=%', v_rc;
+ assert v_rc = 4, format('re-request must return 4 (already_owned), got %s', v_rc);
+
+ v_rc := dbms_lock.release(v_handle);
+ assert v_rc = 0, format('release rc=%s', v_rc);
+
+ select count(*) into v_n from pg_locks where locktype = 'advisory' and pid = pg_backend_pid();
+ assert v_n = 0, format('advisory lock leaked: %s', v_n);
+end;
+/
+--
+-- dbms_lock.sleep must reject NaN instead of returning silently
+--
+do
+$$
+begin
+ begin
+  dbms_lock.sleep('NaN'::float8);
+  raise exception 'dbms_lock.sleep(NaN) should have raised';
+ exception when others then
+  raise notice 'sleep(NaN) rejected';
+ end;
+end
+$$;
 commit;

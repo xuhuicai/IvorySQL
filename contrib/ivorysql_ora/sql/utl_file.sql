@@ -164,6 +164,32 @@ begin
 end;
 /
 
+-- fcopy with identical source and destination must raise and must not
+-- truncate the source file
+declare
+    f sys.ora_utl_file_file_type;
+    line text;
+begin
+    f := utl_file.fopen('data_directory', 'fcopy_same.txt', 'w', 1024);
+    utl_file.put_line(f, 'precious data');
+    utl_file.fclose(f);
+
+    begin
+        utl_file.fcopy('data_directory', 'fcopy_same.txt',
+                       'data_directory', 'fcopy_same.txt');
+        raise exception 'fcopy with same source/destination should have raised';
+    exception when others then
+        raise notice 'fcopy same-file rejected: %', sqlerrm;
+    end;
+
+    -- the source file must still contain its line
+    f := utl_file.fopen('data_directory', 'fcopy_same.txt', 'r', 1024);
+    utl_file.get_line(f, line);
+    raise notice 'source intact: [%]', line;
+    utl_file.fclose(f);
+end;
+/
+
 -- clean up
 delete from sys.utl_file_directory where dirname = 'data_directory';
 /
