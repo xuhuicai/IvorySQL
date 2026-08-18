@@ -494,6 +494,15 @@ ora_utl_file_fcopy(PG_FUNCTION_ARGS)
 	srcpath = get_safe_path(PG_GETARG_TEXT_P(0), PG_GETARG_TEXT_P(1));
 	dstpath = get_safe_path(PG_GETARG_TEXT_P(2), PG_GETARG_TEXT_P(3));
 
+	/*
+	 * Opening the destination with "wt" truncates it, so when source and
+	 * destination are the same file the copy would read from an already
+	 * truncated file and silently destroy the source data.  Reject this
+	 * instead.
+	 */
+	if (strcmp(srcpath, dstpath) == 0)
+		CUSTOM_EXCEPTION(INVALID_OPERATION, "source and destination files must be different");
+
 	start_line = PG_GETARG_IF_EXISTS(4, INT32, 1);
 	if (start_line <= 0)
 		ereport(ERROR,

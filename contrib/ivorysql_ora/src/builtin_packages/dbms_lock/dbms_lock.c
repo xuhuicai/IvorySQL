@@ -262,6 +262,16 @@ ivorysql_dbms_lock_request(PG_FUNCTION_ARGS)
     if (timeout < 0)
         PG_RETURN_INT32(DBMS_LOCK_PARAM_ERROR);
 
+    /*
+     * Oracle returns 4 (already owned) when the calling session already
+     * holds the lock.  Without this check, re-requesting the same handle
+     * would acquire a second advisory lock that a single RELEASE can no
+     * longer fully release, leaking the lock until session end.
+     */
+    if (dbms_lock_check(key, DBMS_LOCK_S_MODE) ||
+        dbms_lock_check(key, DBMS_LOCK_X_MODE))
+        PG_RETURN_INT32(DBMS_LOCK_ALREADY_OWNED);
+
     while (true)
     {
         if (exclusive)
@@ -354,6 +364,10 @@ ivorysql_dbms_lock_sleep(PG_FUNCTION_ARGS)
     if (seconds < 0)
         ereport(ERROR,
                 (errmsg("DBMS_LOCK.SLEEP: seconds must be non-negative")));
+
+    if (isnan(seconds))
+        ereport(ERROR,
+            (errmsg("DBMS_LOCK.SLEEP: seconds must not be NaN")));
 
     if (seconds > 100000000)
         ereport(ERROR,
