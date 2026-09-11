@@ -231,7 +231,7 @@ sysdate(PG_FUNCTION_ARGS)
 	 * SYSDATE does not advance within a statement, but it does advance
 	 * between statements in the same transaction.
 	 */
-	TimestampTz timestamp = GetCurrentStatementStartTimestamp();
+	TimestampTz timestamp = GetOracleStatementStartTimestamp();
 	Timestamp	result;
 	struct pg_tm tt,
 			   *tm = &tt;
@@ -272,7 +272,7 @@ ora_current_date(PG_FUNCTION_ARGS)
 	 * semantics: CURRENT_DATE does not advance within a statement, but it
 	 * does advance between statements in the same transaction.
 	 */
-	TimestampTz timestamp = GetCurrentStatementStartTimestamp();
+	TimestampTz timestamp = GetOracleStatementStartTimestamp();
 	Timestamp	result;
 	struct pg_tm tt,
 			   *tm = &tt;
