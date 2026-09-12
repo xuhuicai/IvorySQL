@@ -1,0 +1,59 @@
+--
+-- tests for utl_recomp package
+--
+
+-- create a test schema with routines and a view to recompile
+CREATE SCHEMA rc_test;
+CREATE FUNCTION rc_test.incr(a int) RETURN int AS $$
+BEGIN
+    RETURN a + 1;
+END;
+$$ LANGUAGE plisql;
+
+CREATE FUNCTION rc_test.sqr(a int) RETURN int AS $$
+    SELECT a * a;
+$$ LANGUAGE sql;
+
+CREATE VIEW rc_test.v1 AS SELECT rc_test.incr(1) AS x;
+
+-- 1. RECOMP_SERIAL on an explicit schema recompiles routines and views
+CALL UTL_RECOMP.RECOMP_SERIAL('rc_test');
+
+-- objects are still usable after recompile
+SELECT rc_test.incr(41) AS incr_result;
+SELECT rc_test.sqr(7) AS sqr_result;
+SELECT * FROM rc_test.v1;
+
+-- 2. RECOMP_SCHEMA (same effect)
+CALL UTL_RECOMP.RECOMP_SCHEMA('rc_test');
+
+-- 3. RECOMP_PARALLEL with an explicit thread count
+CALL UTL_RECOMP.RECOMP_PARALLEL(2, 'rc_test');
+
+-- 4. NULL schema means the current schema
+CALL UTL_RECOMP.RECOMP_SERIAL();
+
+-- 5. flags argument is accepted (and ignored)
+CALL UTL_RECOMP.RECOMP_SERIAL('rc_test', 1);
+CALL UTL_RECOMP.RECOMP_SCHEMA('rc_test', 42);
+
+-- 6. a dependency-broken routine is reported as a warning and does not
+--    stop the other objects from being recompiled
+CREATE FUNCTION rc_test.helper() RETURN int AS $$
+    SELECT 2;
+$$ LANGUAGE SQL;
+CREATE FUNCTION rc_test.uses_helper() RETURN int AS $$
+    SELECT rc_test.helper();
+$$ LANGUAGE SQL;
+DROP FUNCTION rc_test.helper();
+CALL UTL_RECOMP.RECOMP_SERIAL('rc_test');
+SELECT rc_test.incr(1) AS still_ok;
+
+-- clean up before the error cases below
+DROP SCHEMA rc_test CASCADE;
+
+-- 7. threads must be positive
+CALL UTL_RECOMP.RECOMP_PARALLEL(0, 'rc_test');
+
+-- 8. an invalid schema is rejected
+CALL UTL_RECOMP.RECOMP_SERIAL('no_such_schema_xyz');

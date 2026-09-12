@@ -90,6 +90,7 @@ ORA_REGRESS = \
 	ora_ascii \
 	ora_stragg \
 	dbms_lock \
+	utl_recomp \
 	utl_file \
 	utl_raw \
 	utl_encode \
