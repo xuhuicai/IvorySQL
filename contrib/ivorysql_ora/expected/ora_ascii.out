@@ -56,3 +56,61 @@ select ascii('') is null from dual;
  t
 (1 row)
 
+-- multibyte input: ASCII returns the code point of the first character,
+-- not the value of its first byte (Oracle semantics).
+select ascii('中') from dual;
+ ascii 
+-------
+ 20013
+(1 row)
+
+select ascii('中'::varchar2) from dual;
+ ascii 
+-------
+ 20013
+(1 row)
+
+select ascii('中'::oravarcharchar) from dual;
+ ascii 
+-------
+ 20013
+(1 row)
+
+select ascii('中'::oravarcharbyte) from dual;
+ ascii 
+-------
+ 20013
+(1 row)
+
+select ascii('中'::oracharchar) from dual;
+ ascii 
+-------
+ 20013
+(1 row)
+
+select ascii('中'::text) from dual;
+ ascii 
+-------
+ 20013
+(1 row)
+
+-- only the first character is examined
+select ascii('中abc') from dual;
+ ascii 
+-------
+ 20013
+(1 row)
+
+-- supplementary-plane character (U+20000) needs a 4-byte UTF-8 sequence
+select ascii('𠀀') from dual;
+ ascii  
+--------
+ 131072
+(1 row)
+
+select ascii(null) is null from dual;
+ ?column? 
+----------
+ t
+(1 row)
+

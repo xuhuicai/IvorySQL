@@ -2520,6 +2520,47 @@ ora_to_single_byte(PG_FUNCTION_ARGS)
 extern Datum binary_float_out(PG_FUNCTION_ARGS);
 extern Datum binary_double_out(PG_FUNCTION_ARGS);
 
+/*
+ * Return the code point of the first character of the given cstring,
+ * decoding it as UTF-8 when the database encoding is UTF-8.  Oracle's
+ * ASCII() returns the code point of the first character (in the database
+ * character set), not of its first byte.  len bounds the input so that a
+ * truncated multibyte sequence cannot read past the string.
+ */
+static int32
+ora_ascii_first_codepoint(const char *str, int len)
+{
+	unsigned char c = (unsigned char) str[0];
+	int			mblen;
+
+	if (c < 0x80)
+		return c;
+
+	/* Without UTF-8 there is no character-wise decoding to do. */
+	if (GetDatabaseEncoding() != PG_UTF8)
+		return c;
+
+	/* Number of bytes in the first character (may be 1 for invalid input). */
+	mblen = pg_mblen(str);
+	if (mblen > len)
+		return c;				/* incomplete sequence at the end of the string */
+
+	if (mblen == 2)
+		return ((int) (c & 0x1F) << 6) | (str[1] & 0x3F);
+	if (mblen == 3)
+		return ((int) (c & 0x0F) << 12) |
+			(((int) (str[1] & 0x3F)) << 6) |
+			(str[2] & 0x3F);
+	if (mblen == 4)
+		return ((int) (c & 0x07) << 18) |
+			(((int) (str[1] & 0x3F)) << 12) |
+			(((int) (str[2] & 0x3F)) << 6) |
+			(str[3] & 0x3F);
+
+	/* Invalid lead byte. */
+	return c;
+}
+
 Datum
 ora_ascii(PG_FUNCTION_ARGS)
 {
@@ -2552,9 +2593,12 @@ ora_ascii(PG_FUNCTION_ARGS)
 			str = DatumGetCString(DirectFunctionCall1(binary_double_out, Float8GetDatum(val)));
             break;
         }
-		case  ORACHARCHAROID: 
-		case  ORAVARCHARCHAROID : {
-			/* char, varchar, varchar2 */
+		case ORACHARCHAROID:
+		case ORAVARCHARCHAROID:
+		case ORACHARBYTEOID:
+		case ORAVARCHARBYTEOID:
+		case TEXTOID: {
+			/* char, varchar, varchar2, text */
 			text *txt = PG_GETARG_TEXT_PP(0);
             str = text_to_cstring(txt);
             break;
@@ -2607,7 +2651,7 @@ ora_ascii(PG_FUNCTION_ARGS)
 		PG_RETURN_VOID();
 	}
 
-    PG_RETURN_INT32((unsigned char) str[0]);
+    PG_RETURN_INT32(ora_ascii_first_codepoint(str, strlen(str)));
 }
 
 
